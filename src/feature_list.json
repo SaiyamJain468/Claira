@@ -1,0 +1,22 @@
+[
+    "lat",
+    "lon",
+    "elevation",
+    "year",
+    "month_sin",
+    "month_cos",
+    "season",
+    "pm25_lag1",
+    "pm25_lag2",
+    "pm25_lag3",
+    "pm25_rolling3",
+    "pm25_rolling6",
+    "wind_speed",
+    "wind_direction",
+    "temp_humidity_index",
+    "pressure_hpa",
+    "temp_celsius",
+    "aod_mean",
+    "aod_cloud_interaction",
+    "is_urban"
+]
