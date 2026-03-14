@@ -1,14 +1,13 @@
-# Entry point for deployment platforms.
-# This app is built with Streamlit. Run via:
-#   streamlit run app.py
-# which re-exports the dashboard app.
-
-import runpy
 import sys
-from pathlib import Path
+import os
+from streamlit.web import cli as stcli
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent))
-
-# Run the dashboard app
-runpy.run_path("dashboard/app.py", run_name="__main__")
+if __name__ == "__main__":
+    port = os.environ.get("PORT", "8501")
+    sys.argv = [
+        "streamlit", "run", "dashboard/app.py",
+        "--server.port", port,
+        "--server.address", "0.0.0.0",
+        "--server.headless", "true"
+    ]
+    sys.exit(stcli.main())
