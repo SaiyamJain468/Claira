@@ -13,7 +13,15 @@ from sklearn.ensemble import RandomForestRegressor
 import lightgbm as lgb
 import xgboost as xgb
 
-def train_and_eval():
+def train_and_eval() -> None:
+    """
+    Trains and evaluates Random Forest, LightGBM, and XGBoost models.
+    Performs hyperparameter optimization using Optuna for LightGBM.
+    Saves the final model, scaler, and performance metrics.
+    
+    Returns:
+        None
+    """
     proc_dir = Path("data/processed")
     models_dir = Path("models")
     models_dir.mkdir(parents=True, exist_ok=True)
@@ -121,10 +129,10 @@ def train_and_eval():
     final_model.save_model(models_dir / "claira_lgbm.txt")
     
     perf = {
-        "Val RMSE": np.sqrt(mean_squared_error(y_val, lgb_pred)).item(),
-        "Test RMSE": test_rmse.item(),
-        "Test MAE": test_mae.item(),
-        "Test R2": test_r2.item()
+        "Val RMSE": float(np.sqrt(mean_squared_error(y_val, lgb_pred))),
+        "Test RMSE": float(test_rmse),
+        "Test MAE": float(test_mae),
+        "Test R2": float(test_r2)
     }
     with open(models_dir / "performance.json", "w") as f:
         json.dump(perf, f)

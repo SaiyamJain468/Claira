@@ -5,7 +5,15 @@ from pathlib import Path
 
 np.random.seed(42)
 
-def generate_mock_data():
+def generate_mock_data() -> None:
+    """
+    Generates synthetic PM2.5, ERA5, and MODIS datasets for testing.
+    The generated data includes realistic correlations between air quality 
+    and meteorological/satellite observations.
+    
+    Returns:
+        None
+    """
     raw_dir = Path("data/raw")
     raw_dir.mkdir(parents=True, exist_ok=True)
     
@@ -17,14 +25,6 @@ def generate_mock_data():
     
     df_base = pd.DataFrame([(lat, lon, d) for lat, lon in zip(lats, lons) for d in dates],
                            columns=['lat', 'lon', 'date'])
-    
-    # Geo Data
-    geo_data = pd.DataFrame({
-        'lat': lats,
-        'lon': lons,
-        'elevation': np.random.uniform(0, 3000, 500),
-        'land_cover': np.random.choice([0, 1, 2], 500)
-    })
     geo_data.to_csv(raw_dir / "geo_features.csv", index=False)
     
     # ERA5 Data

@@ -3,7 +3,14 @@ import numpy as np
 import json
 from pathlib import Path
 
-def generate_features():
+def generate_features() -> None:
+    """
+    Engineers temporal, meteorological, and satellite-based features 
+    for the PM2.5 prediction model.
+    
+    Returns:
+        None
+    """
     proc_dir = Path("data/processed")
     src_dir = Path("src")
     df = pd.read_csv(proc_dir / "claira_clean.csv")

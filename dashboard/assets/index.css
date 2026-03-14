@@ -1,0 +1,89 @@
+/* Claira Premium Design System */
+@import url('https://api.fontshare.com/v2/css?f[]=clash-display@600,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Satoshi:wght@400;500;700&display=swap');
+
+:root {
+    --bg-dark: #080C14;
+    --primary-cyan: #00E5FF;
+    --warning-amber: #FFB300;
+    --danger-crimson: #FF3D57;
+    --safe-neon: #00E676;
+    --surface-glass: rgba(255, 255, 255, 0.04);
+    --border-glass: rgba(0, 229, 255, 0.15);
+}
+
+body, .stApp {
+    background-color: var(--bg-dark) !important;
+    color: white !important;
+    font-family: 'Satoshi', sans-serif !important;
+}
+
+/* Glassmorphism Cards */
+.glass-card {
+    background: var(--surface-glass);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border-glass);
+    border-radius: 16px;
+    padding: 24px;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.glass-card:hover {
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: 0 0 30px rgba(0, 229, 255, 0.15);
+    border-color: var(--primary-cyan);
+}
+
+/* Typography */
+h1, h2, h3 {
+    font-family: 'Clash Display', sans-serif !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.05em !important;
+}
+
+.mono-data {
+    font-family: 'DM Mono', monospace !important;
+}
+
+/* Animations */
+@keyframes slideUpFade {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+    animation: slideUpFade 0.6s ease-out forwards;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--primary-cyan);
+    border-radius: 10px;
+}
+
+/* Streamlit Toggle/Tab Customization */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 32px;
+}
+
+.stTabs [data-baseweb="tab"] {
+    background-color: transparent !important;
+    border: none !important;
+    font-family: 'Clash Display' !important;
+    font-size: 1.1rem !important;
+    color: rgba(255,255,255,0.4) !important;
+    padding: 10px 0 !important;
+}
+
+.stTabs [aria-selected="true"] {
+    color: var(--primary-cyan) !important;
+    border-bottom: 2px solid var(--primary-cyan) !important;
+}

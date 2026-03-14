@@ -7,7 +7,14 @@ from pathlib import Path
 import json
 import joblib
 
-def run_shap():
+def run_shap() -> None:
+    """
+    Computes SHAP values for the trained LightGBM model to provide 
+    model explainability and feature importance insights.
+    
+    Returns:
+        None
+    """
     reports_dir = Path("reports/figures")
     reports_dir.mkdir(parents=True, exist_ok=True)
     

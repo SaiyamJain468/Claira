@@ -6,7 +6,14 @@ import folium
 from folium.plugins import HeatMap
 from pathlib import Path
 
-def run_eda():
+def run_eda() -> None:
+    """
+    Performs Exploratory Data Analysis (EDA) on the engineered features.
+    Generates distribution plots, trend analysis, and a Folium heatmap.
+    
+    Returns:
+        None
+    """
     proc_dir = Path("data/processed")
     reports_dir = Path("reports/figures")
     reports_dir.mkdir(parents=True, exist_ok=True)

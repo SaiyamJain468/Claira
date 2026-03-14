@@ -4,7 +4,14 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
 
-def clean_data():
+def clean_data() -> None:
+    """
+    Loads raw datasets, handles missing values, removes outliers, 
+    and merges data into a standardized format.
+    
+    Returns:
+        None
+    """
     raw_dir = Path("data/raw")
     proc_dir = Path("data/processed")
     proc_dir.mkdir(parents=True, exist_ok=True)

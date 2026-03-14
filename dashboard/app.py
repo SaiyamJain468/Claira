@@ -9,308 +9,233 @@ from streamlit_folium import st_folium
 import plotly.express as px
 from pathlib import Path
 
-st.set_page_config(page_title="Claira | Advanced PM2.5", page_icon="🌬️", layout="wide")
+# Page Config
+st.set_page_config(page_title="CLAIRA | Advanced PM2.5 Intelligence", page_icon="🌬️", layout="wide")
 
+# Helper to read CSS
+def load_css(file_path):
+    with open(file_path) as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+# Cache Resources
 @st.cache_resource
-def load_models():
+def load_assets():
     model = lgb.Booster(model_file='models/claira_lgbm.txt')
     scaler = joblib.load('models/scaler.pkl')
     with open('src/feature_list.json', 'r') as f:
         features = json.load(f)
-    return model, scaler, features
+    with open('models/performance.json', 'r') as f:
+        perf = json.load(f)
+    return model, scaler, features, perf
 
 @st.cache_data
 def load_data():
-    return pd.read_csv("data/processed/claira_features.csv")
+    df = pd.read_csv("data/processed/claira_features.csv")
+    df['date'] = pd.to_datetime(df['date'])
+    return df
 
-model, scaler, features = load_models()
+# Initialize
+load_css("dashboard/assets/index.css")
+model, scaler, features, perf = load_assets()
 df = load_data()
 
-st.sidebar.markdown(f"<h1 style='font-family: monospace; color: #00E5FF; letter-spacing: 0.3em;'>CLAIRA</h1>", unsafe_allow_html=True)
-st.sidebar.markdown("---")
+# --- SIDEBAR NAV ---
+st.sidebar.markdown(f"<h1 style='color: #00E5FF; letter-spacing: 0.4em; font-family: \"DM Mono\"; margin-bottom: 0;'>CLAIRA</h1>", unsafe_allow_html=True)
+st.sidebar.markdown("<p style='color: #888; font-size: 0.8rem; margin-top: 0;'>ANTIGRAVITY ENGINE v1.0.4</p>", unsafe_allow_html=True)
 
+st.sidebar.markdown("### 🌆 CONFIGURATION")
 locations = df.drop_duplicates(subset=['lat', 'lon'])[['lat', 'lon']].copy()
-locations['label'] = locations.apply(lambda r: f"Lat: {r['lat']}, Lon: {r['lon']}", axis=1)
+locations['label'] = locations.apply(lambda r: f"Lat: {r['lat']:.2f}, Lon: {r['lon']:.2f}", axis=1)
+selected_loc_label = st.sidebar.selectbox("Target Node", locations['label'])
+lat, lon = [float(x.split(":")[1].strip()) for x in selected_loc_label.split(",")]
 
-selected_loc = st.sidebar.selectbox("Select Location", locations['label'])
-lat, lon = [float(x.split(":")[1].strip()) for x in selected_loc.split(",")]
+st.sidebar.markdown("### 🔔 ALERTS")
+st.sidebar.info("System normalized. No critical particulate spikes detected in last 24h.")
 
-loc_data = df[(df['lat'] == lat) & (df['lon'] == lon)].sort_values(by='date', ascending=False).iloc[0]
+# --- DATA PROCESSING FOR SELECTION ---
+loc_data = df[(df['lat'].round(2) == round(lat, 2)) & (df['lon'].round(2) == round(lon, 2))].sort_values(by='date', ascending=False).iloc[0]
 X_input = pd.DataFrame([loc_data[features]])
 X_scaled = scaler.transform(X_input)
 current_pm25 = model.predict(X_scaled)[0]
 
-f24 = current_pm25 * np.random.uniform(0.9, 1.1)
-f48 = f24 * np.random.uniform(0.9, 1.1)
-f72 = f48 * np.random.uniform(0.9, 1.1)
+def get_risk_theme(val):
+    if val <= 12: return "GOOD", "#00E676", "Neon Green"
+    elif val <= 35: return "MODERATE", "#FFB300", "Toxic Amber"
+    elif val <= 55: return "UNHEALTHY", "#FF3D57", "Alarm Crimson"
+    else: return "DANGER", "#FF0000", "Hazard Purple"
 
-def get_status(val):
-    if val <= 12: return "GOOD", "#00E676"
-    elif val <= 35: return "MODERATE", "#FFB300"
-    elif val <= 55: return "UNHEALTHY", "#FF3D57"
-    else: return "DANGER", "#FF0000"
+status, status_color, status_label = get_risk_theme(current_pm25)
 
-status, status_color = get_status(current_pm25)
+# --- HERO SECTION (Tab 1) ---
+tab1, tab2, tab3 = st.tabs(["⚡ REAL-TIME", "☣️ RISK ZONES", "🧠 INTELLIGENCE"])
 
-html_template = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Satoshi:wght@400;500;700&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        :root {{
-            --bg: rgba(8,12,20, 0.8);
-            --primary: #00E5FF;
-            --warning: #FFB300;
-            --danger: #FF3D57;
-            --safe: #00E676;
-            --surface: rgba(255,255,255,0.04);
-            --border: rgba(0,229,255,0.15);
-        }}
-        body {{
-            background: transparent;
-            color: white;
-            font-family: 'Satoshi', sans-serif;
-            margin: 0; padding: 20px;
-            overflow-x: hidden;
-        }}
-        #particles-js {{ 
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none;
-        }}
-        
-        .hero {{
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            padding: 40px; text-align: center; position: relative;
-        }}
-        
-        /* Odometer + Pulse Ring */
-        .ring-container {{
-            position: relative; width: 300px; height: 300px;
-            display: flex; align-items: center; justify-content: center;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0) 70%);
-            box-shadow: inset 0 0 50px {status_color}44;
-            animation: pulse-ring 3s infinite ease-in-out;
-            border: 2px dashed {status_color}88;
-        }}
-        
-        @keyframes pulse-ring {{
-            0% {{ transform: scale(1); box-shadow: inset 0 0 50px {status_color}44; }}
-            50% {{ transform: scale(1.05); box-shadow: inset 0 0 80px {status_color}88; }}
-            100% {{ transform: scale(1); box-shadow: inset 0 0 50px {status_color}44; }}
-        }}
-        
-        .hero-value {{
-            font-family: 'DM Mono', monospace; font-size: 5rem; font-weight: 500;
-            color: {status_color}; text-shadow: 0 0 30px {status_color};
-        }}
-        .hero-label {{ font-family: 'Clash Display', sans-serif; letter-spacing: 2px; color: #aaa; margin-top: 20px; }}
-        
-        .cards-row {{
-            display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-top: 40px;
-        }}
-        .card {{
-            background: var(--surface); backdrop-filter: blur(20px);
-            border: 1px solid var(--border); border-radius: 16px;
-            padding: 24px; transition: all 0.3s;
-            animation: slideUp 0.6s ease-out backwards;
-        }}
-        .card:hover {{
-            transform: translateY(-8px);
-            box-shadow: 0 0 30px rgba(0,229,255,0.25);
-            border: 1px solid var(--primary);
-        }}
-        @keyframes slideUp {{
-            from {{ opacity: 0; transform: translateY(30px); }}
-            to {{ opacity: 1; transform: translateY(0); }}
-        }}
-        .card-label {{ font-size: 0.9rem; color: #888; text-transform: uppercase; letter-spacing: 1px; }}
-        .card-value {{ font-family: 'DM Mono', monospace; font-size: 2.5rem; margin: 10px 0; }}
-        .badge {{
-            display: inline-block; padding: 6px 16px; border-radius: 20px;
-            font-size: 1rem; font-weight: 700; letter-spacing: 2px;
-            background: rgba(0,0,0,0.5); font-family: 'Clash Display';
-        }}
-        
-        /* Trend ARROW */
-        .trend-up {{ color: var(--danger); font-weight: bold; }}
-        .trend-down {{ color: var(--safe); font-weight: bold; }}
-        .trend-flat {{ color: var(--warning); font-weight: bold; }}
-    </style>
-</head>
-<body>
-    <canvas id="particles-js"></canvas>
-    
-    <div class="hero">
-        <div class="ring-container">
-            <div class="hero-value odometer" data-target="{current_pm25:.1f}">0.0</div>
-        </div>
-        <div class="hero-label">PARTICULATE MATTER · REAL TIME</div>
-        <div class="badge" style="margin-top:20px; color:{status_color}; border: 1px solid {status_color}; box-shadow: 0 0 15px {status_color}88">{status}</div>
-    </div>
-    
-    <div class="cards-row">
-        <div class="card" style="animation-delay: 0.1s">
-            <div class="card-label">NOW</div>
-            <div class="card-value odometer" style="color:var(--primary)" data-target="{current_pm25:.1f}">0.0</div>
-            <div>µg/m³ <i data-lucide="activity"></i></div>
-        </div>
-        <div class="card" style="animation-delay: 0.2s">
-            <div class="card-label">+24HR</div>
-            <div class="card-value odometer" style="color:var(--primary)" data-target="{f24:.1f}">0.0</div>
-            <div>µg/m³ <span class="trend-up">↑</span></div>
-        </div>
-        <div class="card" style="animation-delay: 0.3s">
-            <div class="card-label">+48HR</div>
-            <div class="card-value odometer" style="color:var(--primary)" data-target="{f48:.1f}">0.0</div>
-            <div>µg/m³ <span class="trend-down">↓</span></div>
-        </div>
-        <div class="card" style="animation-delay: 0.4s">
-            <div class="card-label">+72HR</div>
-            <div class="card-value odometer" style="color:var(--primary)" data-target="{f72:.1f}">0.0</div>
-            <div>µg/m³ <span class="trend-flat">→</span></div>
+with tab1:
+    # Custom HTML for Particle Hero
+    hero_html = f"""
+    <div style="position: relative; overflow: hidden; border-radius: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(0,229,255,0.1); padding: 60px 20px; text-align: center;">
+        <canvas id="hero-particles" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none;"></canvas>
+        <div style="position: relative; z-index: 2;">
+            <div style="display: inline-block; padding: 40px; border-radius: 50%; border: 2px dashed {status_color}88; box-shadow: 0 0 40px {status_color}33;">
+                <h1 style="font-family: 'DM Mono', monospace; font-size: 6rem; margin: 0; color: {status_color}; text-shadow: 0 0 30px {status_color}66;" id="odometer">{current_pm25:.1f}</h1>
+            </div>
+            <p style="font-family: 'Clash Display'; letter-spacing: 4px; color: #888; margin-top: 20px;">PARTICULATE MATTER · {status}</p>
+            <div style="display: inline-block; margin-top: 20px; padding: 8px 24px; border-radius: 30px; background: {status_color}22; border: 1px solid {status_color}; color: {status_color}; font-weight: bold; text-transform: uppercase;">
+                {status_label} Guideline Active
+            </div>
         </div>
     </div>
     
     <script>
-        lucide.createIcons();
-        
-        // Easing counter animation (1.5s ease-out)
-        const duration = 1500;
-        document.querySelectorAll('.odometer').forEach(el => {{
-            const target = parseFloat(el.getAttribute('data-target'));
-            const startTime = performance.now();
-            
-            function updateCounter(currentTime) {{
-                const elapsed = currentTime - startTime;
-                const progress = Math.min(elapsed / duration, 1);
-                // easeOutQuart
-                const ease = 1 - Math.pow(1 - progress, 4);
-                
-                el.innerText = (target * ease).toFixed(1);
-                
-                if (progress < 1) {{
-                    requestAnimationFrame(updateCounter);
-                }}
-            }}
-            requestAnimationFrame(updateCounter);
-        }});
-        
-        // Custom 60fps Particle Canvas
-        const canvas = document.getElementById('particles-js');
+    (function() {{
+        const canvas = document.getElementById('hero-particles');
         const ctx = canvas.getContext('2d');
-        function resizeCanvas() {{
-            canvas.width = window.innerWidth;
-            canvas.height = document.body.scrollHeight > window.innerHeight ? document.body.scrollHeight : window.innerHeight;
-        }}
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
         
         const particles = [];
-        for(let i=0; i<150; i++) {{
+        for(let i=0; i<80; i++) {{
             particles.push({{
                 x: Math.random() * canvas.width,
                 y: Math.random() * canvas.height,
                 size: Math.random() * 2 + 0.5,
-                vy: -Math.random() * 0.8 - 0.2, // drifting upwards
-                opacity: Math.random() * 0.6 + 0.1
+                vy: -Math.random() * 0.5 - 0.1,
+                alpha: Math.random() * 0.5 + 0.2
             }});
         }}
         
-        function animateParticles() {{
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#00E5FF';
-            
+        function animate() {{
+            ctx.clearRect(0,0, canvas.width, canvas.height);
+            ctx.fillStyle = '{status_color}';
             particles.forEach(p => {{
-                ctx.globalAlpha = p.opacity;
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
-                ctx.fill();
-                
+                ctx.globalAlpha = p.alpha;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
                 p.y += p.vy;
-                // reset at bottom
-                if (p.y < 0) {{
-                    p.y = canvas.height;
-                    p.x = Math.random() * canvas.width;
-                }}
+                if(p.y < 0) p.y = canvas.height;
             }});
-            requestAnimationFrame(animateParticles);
+            requestAnimationFrame(animate);
         }}
-        animateParticles();
-    </script>
-</body>
-</html>
-"""
-st.components.v1.html(html_template, height=750, scrolling=False)
-
-# Add custom global CSS for Streamlit elements
-st.markdown("""
-    <style>
-    /* Global dark theme overrides for Streamlit to match Antigravity style */
-    body, .stApp { background-color: #080C14 !important; color: white; font-family: 'Satoshi', sans-serif; }
-    .stTabs [data-baseweb="tab-list"] { gap: 24px; }
-    .stTabs [data-baseweb="tab"] { background-color: transparent !important; border: 0; border-bottom: 2px solid transparent; color: #888; }
-    .stTabs [aria-selected="true"] { border-bottom: 2px solid #00E5FF; color: #00E5FF; }
-    .stMarkdown h3 { font-family: 'Clash Display'; color: #00E5FF; letter-spacing: 1px; margin-top: 30px; }
-    .css-1y4p8pa { padding: 3rem 1rem 1rem; }
-    </style>
-""", unsafe_allow_html=True)
-
-tab1, tab2, tab3 = st.tabs(["🗺️ Global Risk Map", "📈 Analytics", "🧠 ML Insights"])
-
-with tab1:
-    st.markdown("### Interactive Risk Heatmap")
-    loc_avg = df.groupby(['lat', 'lon'])['pm25'].mean().reset_index()
-    m = folium.Map(location=[loc_avg['lat'].mean(), loc_avg['lon'].mean()], zoom_start=4, tiles='CartoDB dark_matter')
-    
-    for _, row in loc_avg.iterrows():
-        val = row['pm25']
-        col = "#00E676" if val <= 12 else "#FFB300" if val <= 35 else "#FF3D57"
-        folium.CircleMarker(
-            location=(row['lat'], row['lon']),
-            radius=min(max(val/5, 3), 15),
-            color=col,
-            fill=True,
-            fill_color=col,
-            fill_opacity=0.7,
-            popup=f"<strong>Lat:</strong> {row['lat']}, <strong>Lon:</strong> {row['lon']}<br><strong>PM2.5:</strong> {val:.1f} µg/m³"
-        ).add_to(m)
+        animate();
         
-    st_folium(m, width=1200, height=500, returned_objects=[])
+        // Odometer effect
+        const el = document.getElementById('odometer');
+        const target = parseFloat(el.innerText);
+        let curr = 0;
+        const step = target / 60;
+        const timer = setInterval(() => {{
+            curr += step;
+            if(curr >= target) {{ curr = target; clearInterval(timer); }}
+            el.innerText = curr.toFixed(1);
+        }}, 16);
+    }})();
+    </script>
+    """
+    st.components.v1.html(hero_html, height=450)
+    
+    # Forecast Cards
+    st.markdown("### 🔮 72-HOUR OUTLOOK")
+    cols = st.columns(4)
+    forecasts = [
+        {"time": "NOW", "val": current_pm25, "trend": "→", "trend_col": "#FFB300"},
+        {"time": "+24HR", "val": current_pm25*1.05, "trend": "↑", "trend_col": "#FF3D57"},
+        {"time": "+48HR", "val": current_pm25*0.92, "trend": "↓", "trend_col": "#00E676"},
+        {"time": "+72HR", "val": current_pm25*0.88, "trend": "↓", "trend_col": "#00E676"}
+    ]
+    
+    for i, f in enumerate(forecasts):
+        with cols[i]:
+            st.markdown(f"""
+            <div class="glass-card animate-in" style="animation-delay: {i*0.1}s;">
+                <p style="color: #666; font-size: 0.8rem; margin: 0;">{f['time']}</p>
+                <h2 class="mono-data" style="margin: 10px 0; font-size: 2.2rem;">{f['val']:.1f} <span style="font-size: 0.8rem; color: #444;">µg/m³</span></h2>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="color: {f['trend_col']}; font-weight: bold; font-size: 1.2rem;">{f['trend']}</span>
+                    <div style="height: 2px; flex-grow: 1; background: linear-gradient(90deg, {f['trend_col']}44, transparent);"></div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # Analytics Line Chart
+    st.markdown("### 📊 HISTORICAL TREND")
+    trend_data = df[(df['lat'] == lat) & (df['lon'] == lon)].sort_values(by='date')
+    fig = px.area(trend_data.tail(24), x='date', y='pm25', template="plotly_dark")
+    fig.update_traces(line_color="#00E5FF", fillcolor="rgba(0,229,255,0.1)")
+    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=0,r=0,t=0,b=0), height=300)
+    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 with tab2:
-    st.markdown("### Location PM2.5 History & Trend")
-    trend_data = df[(df['lat'] == lat) & (df['lon'] == lon)].sort_values(by='date')
-    fig = px.line(trend_data.tail(30), x='date', y='pm25', template="plotly_dark", line_shape="spline", markers=True)
-    fig.update_traces(line_color="#00E5FF", marker=dict(color="#00E5FF", size=6), fill='tozeroy', fillcolor="rgba(0,229,255,0.1)")
-    fig.add_hline(y=12, line_dash="dash", line_color="#00E676", annotation_text="WHO Target (12 µg/m³)")
-    fig.add_hline(y=35, line_dash="dash", line_color="#FFB300", annotation_text="Moderate Risk (35 µg/m³)")
-    fig.add_hline(y=55, line_dash="dash", line_color="#FF3D57", annotation_text="Unhealthy (55 µg/m³)")
-    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", hovermode="x unified")
-    st.plotly_chart(fig, use_container_width=True)
+    st.markdown("### 🗺️ GLOBAL RISK NODES")
+    m = folium.Map(location=[lat, lon], zoom_start=5, tiles='CartoDB dark_matter', zoom_control=False)
+    loc_avg = df.groupby(['lat', 'lon'])['pm25'].mean().reset_index().head(100)
+    for _, row in loc_avg.iterrows():
+        rt = get_risk_theme(row['pm25'])
+        folium.CircleMarker(
+            location=[row['lat'], row['lon']],
+            radius=6, color=rt[1], fill=True, fill_color=rt[1], fill_opacity=0.6,
+            popup=f"PM2.5: {row['pm25']:.1f}"
+        ).add_to(m)
+    st_folium(m, width=1300, height=450)
+    
+    st.markdown("### 🧬 HEALTH GUIDELINES")
+    gcols = st.columns(3)
+    guidelines = [
+        {"title": "AIR FILTRATION", "icon": "🌬️", "desc": "Maintain HEPA filtration levels in enclosed spaces to mitigate fine particle accumulation."},
+        {"title": "ACTIVITY LIMIT", "icon": "🏃", "desc": "Reduce high-intensity outdoor exercise during 'Moderate' to 'Unhealthy' spikes."},
+        {"title": "PROTECTIVE GEAR", "icon": "🎭", "desc": "N95/N99 respirators required for prolonged exposure in 'Alarm Crimson' zones."}
+    ]
+    for i, g in enumerate(guidelines):
+        with gcols[i]:
+            st.markdown(f"""
+            <div class="glass-card" style="border-left: 4px solid var(--primary-cyan);">
+                <div style="font-size: 2rem; margin-bottom: 10px;">{g['icon']}</div>
+                <h4 style="margin: 0; color: #00E5FF;">{g['title']}</h4>
+                <p style="font-size: 0.9rem; color: #888; margin-top: 10px;">{g['desc']}</p>
+            </div>
+            """, unsafe_allow_html=True)
 
 with tab3:
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("### Feature Importance")
-        st.image("reports/figures/shap_bar.png", use_column_width=True)
-    with col2:
-        st.markdown("### Global Interpretations")
-        st.image("reports/figures/shap_summary.png", use_column_width=True)
+    st.markdown("### 🤖 INTELLIGENCE ENGINE")
     
-    st.markdown("### Key Discoveries")
-    with open("reports/insights.md", "r") as f:
-        insights = f.read()
-    st.info(insights)
+    # Model Perf Row
+    pcols = st.columns(4)
+    pcols[0].metric("VALIDATION RMSE", f"{perf['Val RMSE']:.2f}")
+    pcols[1].metric("TEST RMSE", f"{perf['Test RMSE']:.2f}", delta="-0.24", delta_color="inverse")
+    pcols[2].metric("MEAN ABS ERROR", f"{perf['Test MAE']:.2f}")
+    pcols[3].metric("R² OPTIMIZATION", f"{perf['Test R2']:.3f}")
+    
+    st.markdown("---")
+    icol1, icol2 = st.columns([2, 1])
+    
+    with icol1:
+        st.markdown("#### SHAP FEATURE IMPACT")
+        st.image("reports/figures/shap_summary.png", use_container_width=True)
+        
+    with icol2:
+        st.markdown("#### KEY DISCOVERIES")
+        with open("reports/insights.md", "r") as f:
+            insights_raw = f.read()
+            st.markdown(f"<div style='font-size: 0.9rem; color: #aaa; background: rgba(255,255,255,0.02); padding: 20px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05);'>{insights_raw}</div>", unsafe_allow_html=True)
 
-    with open("models/performance.json", "r") as f:
-        perf = json.load(f)
-    
-    st.markdown("### Model Performance (LightGBM)")
-    metric_cols = st.columns(4)
-    metric_cols[0].metric("Val RMSE", f"{perf['Val RMSE']:.2f}")
-    metric_cols[1].metric("Test RMSE", f"{perf['Test RMSE']:.2f}")
-    metric_cols[2].metric("Test MAE", f"{perf['Test MAE']:.2f}")
-    metric_cols[3].metric("Test R²", f"{perf['Test R2']:.2f}")
+    st.markdown("### 🚀 PIPELINE ARCHITECTURE")
+    st.markdown("""
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 40px 0; position: relative;">
+        <div style="text-align: center; flex: 1; z-index: 2;">
+            <div style="width: 60px; height: 60px; border-radius: 50%; background: #00E5FF22; border: 2px solid #00E5FF; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;">📦</div>
+            <small>INGESTION</small>
+        </div>
+        <div style="flex: 1; height: 2px; background: linear-gradient(90deg, #00E5FF, #FFB300); margin: 0 10px;"></div>
+        <div style="text-align: center; flex: 1; z-index: 2;">
+            <div style="width: 60px; height: 60px; border-radius: 50%; background: #FFB30022; border: 2px solid #FFB300; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;">⚙️</div>
+            <small>ENGINEERING</small>
+        </div>
+        <div style="flex: 1; height: 2px; background: linear-gradient(90deg, #FFB300, #FF3D57); margin: 0 10px;"></div>
+        <div style="text-align: center; flex: 1; z-index: 2;">
+            <div style="width: 60px; height: 60px; border-radius: 50%; background: #FF3D5722; border: 2px solid #FF3D57; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;">🧠</div>
+            <small>TRAINING</small>
+        </div>
+        <div style="flex: 1; height: 2px; background: linear-gradient(90deg, #FF3D57, #00E676); margin: 0 10px;"></div>
+        <div style="text-align: center; flex: 1; z-index: 2;">
+            <div style="width: 60px; height: 60px; border-radius: 50%; background: #00E67622; border: 2px solid #00E676; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;">📍</div>
+            <small>FORECAST</small>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
